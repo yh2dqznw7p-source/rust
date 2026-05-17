@@ -1,0 +1,19 @@
+{
+    "name": "RustLike.World",
+    "rootNamespace": "RustLike.World",
+    "references": [
+        "RustLike.Core",
+        "RustLike.Net",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Jobs",
+        "Unity.Addressables",
+        "Unity.ResourceManager"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "autoReferenced": false,
+    "noEngineReferences": false
+}

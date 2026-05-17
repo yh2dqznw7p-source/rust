@@ -1,0 +1,27 @@
+{
+    "name": "RustLike.Presentation",
+    "rootNamespace": "RustLike.Presentation",
+    "references": [
+        "RustLike.Core",
+        "RustLike.Net",
+        "RustLike.World",
+        "RustLike.Gameplay",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.TextMeshPro",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [
+        "Editor",
+        "WindowsStandalone32",
+        "WindowsStandalone64",
+        "macOSStandalone",
+        "LinuxStandalone64"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": false,
+    "defineConstraints": [
+        "!UNITY_SERVER"
+    ],
+    "noEngineReferences": false
+}

@@ -1,0 +1,26 @@
+{
+    "name": "RustLike.Net",
+    "rootNamespace": "RustLike.Net",
+    "references": [
+        "RustLike.Core",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "FishNet.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.firstgeargames.fishnet",
+            "expression": "0.0.0",
+            "define": "FISHNET"
+        }
+    ],
+    "noEngineReferences": false
+}

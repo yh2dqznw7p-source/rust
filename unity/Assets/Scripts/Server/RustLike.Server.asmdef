@@ -1,0 +1,15 @@
+{
+    "name": "RustLike.Server",
+    "rootNamespace": "RustLike.Server",
+    "references": [
+        "RustLike.Core",
+        "RustLike.Net",
+        "RustLike.World",
+        "RustLike.Gameplay"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "autoReferenced": false,
+    "noEngineReferences": false
+}
