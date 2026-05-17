@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
-// RustLike — Phase 0 client entry point.
+// RustLike — Phase 0.5 client entry point.
 //
-// Hooks in at AfterSceneLoad (so Core's Bootstrap.Run already ran at
-// BeforeSceneLoad, GameLoop exists, ServiceLocator is available).
-//
-// Builds an "in-code scene": ground, lights, player, HUD. This way the
-// project is playable from a clean clone without authoring a .unity file.
-//
-// Replace this in Phase 1+ with a real MainMenu → Game scene flow.
+// Hooks at AfterSceneLoad (Core's Bootstrap.Run already created GameLoop).
+// Builds an in-code playable scene:
+//   - Playground world (terrain, props, trees, stones, ores, dummies)
+//   - Player rig (CharacterController + camera + controllers)
+//   - HUDs (Survival, Crosshair, Hotbar, Inventory, Crafting)
+//   - Inventory + crafting services in ServiceLocator
+//   - Starter inventory (hatchet, building parts, etc.)
 
 using RustLike.Core.Bootstrap;
 using RustLike.Core.Logging;
+using RustLike.Gameplay.Crafting;
+using RustLike.Gameplay.Inventory;
 using RustLike.Gameplay.Survival;
 using RustLike.Presentation.Player;
 using RustLike.Presentation.UI;
@@ -26,34 +28,56 @@ namespace RustLike.Presentation.Bootstrap
         {
             if (AppBootstrap.Mode == AppMode.Server) return;
 
-            // --- 1. Register gameplay services (server would do same in ServerBootstrap)
+            // 1. Item registry
+            var registry = ItemDatabase.Build();
+
+            // 2. Player inventory + crafting service
+            var inv = new PlayerInventory(registry);
+            ServiceLocator.Register(inv);
+
+            var craft = new CraftingService(inv);
+            ServiceLocator.Register(craft);
+            GameLoop.Instance.Register(craft);
+
+            // 3. Vitals
             var vitals = new VitalsService();
             ServiceLocator.Register(vitals);
             const int localEntityId = 1;
             vitals.RegisterPlayer(localEntityId);
             GameLoop.Instance.Register(vitals);
 
-            // --- 2. World root (everything we spawn here lives under it)
-            var worldRoot = new GameObject("[World]");
+            // 4. Starter loadout for the demo
+            inv.PickUp(ItemIds.Hatchet,    1);
+            inv.PickUp(ItemIds.Pickaxe,    1);
+            inv.PickUp(ItemIds.Pistol,     1);
+            inv.PickUp(ItemIds.PistolAmmo, 24);
+            inv.PickUp(ItemIds.Bandage,    3);
+            inv.PickUp(ItemIds.Apple,      3);
+            inv.PickUp(ItemIds.WaterBottle,2);
+            inv.PickUp(ItemIds.BFoundation,5);
+            inv.PickUp(ItemIds.BWall,      8);
+            inv.SelectHotbarSlot(0);
 
-            // Default Unity scene ships with a Main Camera and Directional Light;
-            // remove them so we don't end up with duplicate cameras / two
-            // AudioListeners (Unity warns about that).
+            // 5. World
             CleanDefaultSceneObjects();
-
-            // --- 3. Ground + lights + props
+            var worldRoot = new GameObject("[World]");
             PlaygroundWorldBuilder.Build(worldRoot.transform);
 
-            // --- 4. Player
-            var player = SpawnPlayer(localEntityId);
-
-            // --- 5. HUD
+            // 6. HUDs FIRST so player controllers can find them via FindObjectOfType.
             var hudGo = new GameObject("[HUD]");
             Object.DontDestroyOnLoad(hudGo);
             var hud = hudGo.AddComponent<SurvivalHUD>();
             hud.EntityId = localEntityId;
+            hudGo.AddComponent<HotbarHUD>();
+            hudGo.AddComponent<CrosshairHUD>();
+            hudGo.AddComponent<HelpHUD>();
+            hudGo.AddComponent<InventoryWindow>();
+            hudGo.AddComponent<CraftingWindow>();
 
-            Log.Info(LogCat.Boot, "ClientBootstrap done. Spawned player at " + player.transform.position);
+            // 7. Player rig
+            var player = SpawnPlayer(localEntityId);
+
+            Log.Info(LogCat.Boot, "ClientBootstrap done at " + player.transform.position);
         }
 
         private static GameObject SpawnPlayer(int entityId)
@@ -65,7 +89,7 @@ namespace RustLike.Presentation.Bootstrap
             cc.radius = 0.35f;
             cc.center = new Vector3(0f, 0.9f, 0f);
 
-            // Head transform (parents the camera so look pitch is local).
+            // Head transform parents the camera so look pitch is local.
             var head = new GameObject("[Head]");
             head.transform.SetParent(player.transform, false);
             head.transform.localPosition = new Vector3(0f, 1.6f, 0f);
@@ -82,25 +106,22 @@ namespace RustLike.Presentation.Bootstrap
             cam.backgroundColor = new Color(0.55f, 0.65f, 0.78f);
             camGo.AddComponent<AudioListener>();
 
-            // Reorder children: FirstPersonController expects the head to be child 0.
             head.transform.SetSiblingIndex(0);
 
             var fpc = player.AddComponent<FirstPersonController>();
             fpc.EntityId = entityId;
+            player.AddComponent<WeaponController>();
+            player.AddComponent<BuildingPlacementController>();
+            player.AddComponent<InteractController>();
             return player;
         }
 
         private static void CleanDefaultSceneObjects()
         {
-            // Tagged main camera (default scene).
             var existingCam = Camera.main;
             if (existingCam != null) Object.Destroy(existingCam.gameObject);
-
-            // Any leftover AudioListeners (we'll add ours on the player camera).
             foreach (var al in Object.FindObjectsOfType<AudioListener>())
                 Object.Destroy(al);
-
-            // Any leftover Directional lights (we add our own sun).
             foreach (var l in Object.FindObjectsOfType<Light>())
                 if (l.type == LightType.Directional) Object.Destroy(l.gameObject);
         }
