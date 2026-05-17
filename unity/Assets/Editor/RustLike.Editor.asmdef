@@ -1,0 +1,14 @@
+{
+    "name": "RustLike.Editor",
+    "rootNamespace": "RustLike.Editor",
+    "references": [
+        "RustLike.Core"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": true,
+    "noEngineReferences": false
+}
