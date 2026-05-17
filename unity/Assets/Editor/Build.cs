@@ -27,17 +27,19 @@ namespace RustLike.Editor
 {
     public static class Build
     {
-        // GameCI's unity-builder picks up the produced files from `build/<target>/`.
-        // It also passes target via -buildTarget; we double-read from env for safety.
+        // GameCI passes the absolute output path via -customBuildPath, e.g.
+        //   /github/workspace/build/StandaloneWindows64/RustLike.exe
+        // If we instead use a relative path, Unity resolves it against the
+        // project root (`unity/`), and the .exe ends up in `unity/build/...`,
+        // which GameCI's "verify build output" step then can't find.
+        // So we ALWAYS prefer the absolute -customBuildPath when present.
         public static void Run()
         {
             BuildTarget target = ResolveTarget();
-            string outDir   = $"build/{target}";
-            string ext      = ExtensionFor(target);
-            string fileName = $"RustLike{ext}";
-            string fullPath = Path.Combine(outDir, fileName);
-
+            string fullPath = ResolveCustomBuildPath(target);
+            string outDir   = Path.GetDirectoryName(fullPath)!;
             Directory.CreateDirectory(outDir);
+            Debug.Log($"[RustLike CI] Output path: {fullPath}");
 
             // Make sure we have a scene in EditorBuildSettings. We don't ship
             // a .unity asset, so generate a minimal empty one and add it.
@@ -91,6 +93,35 @@ namespace RustLike.Editor
                 return parsed;
             }
             return EditorUserBuildSettings.activeBuildTarget;
+        }
+
+        /// <summary>
+        /// Look at -customBuildPath argv, then BUILD_PATH+BUILD_FILE env vars,
+        /// and only fall back to a project-relative path if nothing else works.
+        /// </summary>
+        private static string ResolveCustomBuildPath(BuildTarget target)
+        {
+            // 1) -customBuildPath ABSOLUTE
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i] == "-customBuildPath" && !string.IsNullOrEmpty(args[i + 1]))
+                    return args[i + 1];
+            }
+            // 2) GameCI env vars
+            string envPath = Environment.GetEnvironmentVariable("BUILD_PATH");
+            string envFile = Environment.GetEnvironmentVariable("BUILD_FILE");
+            if (!string.IsNullOrEmpty(envPath) && !string.IsNullOrEmpty(envFile))
+            {
+                // BUILD_PATH is relative to GITHUB_WORKSPACE; make it absolute.
+                string ws = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE");
+                string baseDir = !string.IsNullOrEmpty(ws)
+                    ? Path.Combine(ws, envPath)
+                    : Path.Combine("..", envPath); // sibling of project
+                return Path.Combine(baseDir, envFile);
+            }
+            // 3) Last-resort: project-relative.
+            return Path.Combine("build", target.ToString(), "RustLike" + ExtensionFor(target));
         }
 
         private static string ExtensionFor(BuildTarget t) => t switch
