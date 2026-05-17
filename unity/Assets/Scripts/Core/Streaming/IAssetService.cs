@@ -38,7 +38,7 @@ namespace RustLike.Core.Streaming
     {
         /// <summary> Load any UnityEngine.Object subclass by Addressables key. </summary>
         ValueTask<(AssetHandle handle, T asset)> LoadAsync<T>(
-            string key, CancellationToken ct = default) where T : Object;
+            string key, CancellationToken ct = default) where T : UnityEngine.Object;
 
         /// <summary> Load + instantiate as a GameObject (parent optional). </summary>
         ValueTask<(AssetHandle handle, GameObject instance)> InstantiateAsync(

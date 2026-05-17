@@ -1,0 +1,146 @@
+# SPDX-License-Identifier: MIT
+# Unity build via GameCI (https://game.ci).
+#
+# REQUIREMENTS to enable this workflow:
+#   1. Add repo secrets:
+#        UNITY_LICENSE       — content of your Unity_v2022.x.ulf
+#        UNITY_EMAIL         — Unity account email
+#        UNITY_PASSWORD      — Unity account password (or use serial)
+#        UNITY_SERIAL        — (optional) Unity Pro serial
+#   2. Without these secrets the build job is auto-skipped, so the workflow
+#      stays green for forks / first-time clones.
+#
+# How to obtain a free Personal license file:
+#   See https://game.ci/docs/github/activation/activation-personal
+#
+# Builds run on a GameCI Docker image that already has Unity 2022.3 LTS,
+# URP package cache, IL2CPP, mono, and Linux/Windows/macOS toolchains.
+
+name: Unity build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel stale runs on the same branch (saves CI minutes).
+concurrency:
+  group: unity-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  precheck:
+    name: Check Unity license is configured
+    runs-on: ubuntu-latest
+    outputs:
+      has_license: ${{ steps.check.outputs.has_license }}
+    steps:
+      - id: check
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+        run: |
+          if [ -n "${UNITY_LICENSE:-}" ]; then
+            echo "has_license=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_license=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::UNITY_LICENSE secret is not set; Unity build job will be skipped."
+          fi
+
+  build:
+    name: Build (${{ matrix.targetPlatform }})
+    needs: precheck
+    if: needs.precheck.outputs.has_license == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # GameCI's default unity-builder image (Linux runner) builds:
+        #   - StandaloneLinux64  via Mono / IL2CPP — native (fast, ~10 min cold).
+        #   - StandaloneWindows64 via Mono cross-compile — works out of the box,
+        #     produces a real .exe. IL2CPP for Windows from Linux is NOT
+        #     supported by Unity; if we ever need it we'd switch this matrix
+        #     entry to runs-on: windows-2022 (costs 2x CI minutes).
+        targetPlatform:
+          - StandaloneLinux64
+          - StandaloneWindows64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      # Library/ caching shaves ~5–10 min off subsequent builds.
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: unity/Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('unity/Packages/manifest.json') }}
+          restore-keys: |
+            Library-${{ matrix.targetPlatform }}-
+            Library-
+
+      - name: Build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL:    ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL:   ${{ secrets.UNITY_SERIAL }}
+          BUILD_TARGET:   ${{ matrix.targetPlatform }}
+        with:
+          projectPath: unity
+          targetPlatform: ${{ matrix.targetPlatform }}
+          unityVersion: 2022.3.40f1
+          # Mono backend produces a real .exe on Windows from a Linux runner.
+          # IL2CPP for Windows requires a Windows runner; we stick to Mono for
+          # CI speed and 10x cheaper minutes. Quality is identical for Phase 0.
+          buildMethod: RustLike.Editor.Build.Run
+          allowDirtyBuild: true
+          buildName: RustLike
+
+      # Sanity check the artifact actually contains an .exe (Windows) or .x86_64
+      # (Linux). Fail loudly if Unity silently produced nothing.
+      - name: Verify build output
+        shell: bash
+        run: |
+          set -e
+          dir="build/${{ matrix.targetPlatform }}"
+          echo "=== contents of $dir ==="
+          ls -la "$dir" || { echo "::error::build dir missing"; exit 1; }
+          case "${{ matrix.targetPlatform }}" in
+            StandaloneWindows64)
+              [ -f "$dir/RustLike.exe" ] || { echo "::error::RustLike.exe not produced"; exit 1; }
+              echo "OK: $(stat -c '%n %s bytes' "$dir/RustLike.exe")"
+              ;;
+            StandaloneLinux64)
+              [ -f "$dir/RustLike.x86_64" ] || { echo "::error::RustLike.x86_64 not produced"; exit 1; }
+              echo "OK: $(stat -c '%n %s bytes' "$dir/RustLike.x86_64")"
+              ;;
+          esac
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustlike-${{ matrix.targetPlatform }}
+          path: build/${{ matrix.targetPlatform }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Job summary
+        shell: bash
+        run: |
+          echo "## RustLike build · ${{ matrix.targetPlatform }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact: \`rustlike-${{ matrix.targetPlatform }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Files" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -la "build/${{ matrix.targetPlatform }}" >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Download from the **Artifacts** section at the bottom of this run page." >> "$GITHUB_STEP_SUMMARY"
+
+  # Headless server build will return in Phase 0 close-out together with
+  # ServerBootstrap.cs. Right now there is no server-specific entry point,
+  # so a "server build" of the current code would produce an idle headless
+  # process — not useful, and would consume CI minutes.

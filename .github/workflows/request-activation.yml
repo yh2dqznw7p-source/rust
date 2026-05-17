@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: MIT
+# One-shot helper to obtain a Unity Personal license without installing
+# Unity Hub locally.
+#
+# How to use:
+#   1. Actions tab -> "Request Unity activation file" -> Run workflow.
+#   2. Wait ~3 minutes.
+#   3. Download the artifact "Unity_v2022.x.alf".
+#   4. Go to https://license.unity3d.com/manual
+#   5. Sign in with your Unity account, upload the .alf file.
+#   6. Choose "Unity Personal" -> agree -> download the produced .ulf file.
+#   7. Open the .ulf in Notepad, copy the entire contents.
+#   8. Settings -> Secrets and variables -> Actions ->
+#      add UNITY_LICENSE secret with the .ulf contents.
+#   9. Now the main "Unity build" workflow will work.
+#
+# After step 9, you can DELETE this workflow file — it's only needed once.
+
+name: Request Unity activation file
+
+on:
+  workflow_dispatch:
+
+jobs:
+  request:
+    name: Generate .alf file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Request manual activation file
+        id: getManualLicenseFile
+        uses: game-ci/unity-request-activation-file@v2
+        with:
+          unityVersion: 2022.3.40f1
+
+      - name: Upload .alf as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          retention-days: 7
+
+      - name: Next steps
+        run: |
+          echo "## Next steps" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. Scroll down to **Artifacts** and download the .alf file." >> "$GITHUB_STEP_SUMMARY"
+          echo "2. Open https://license.unity3d.com/manual" >> "$GITHUB_STEP_SUMMARY"
+          echo "3. Sign in with your Unity account." >> "$GITHUB_STEP_SUMMARY"
+          echo "4. Upload the .alf, choose **Unity Personal**, agree, download the .ulf." >> "$GITHUB_STEP_SUMMARY"
+          echo "5. Open the .ulf in Notepad, copy ALL contents." >> "$GITHUB_STEP_SUMMARY"
+          echo "6. Add it as the \`UNITY_LICENSE\` repo secret." >> "$GITHUB_STEP_SUMMARY"
+          echo "7. Re-run the **Unity build** workflow." >> "$GITHUB_STEP_SUMMARY"

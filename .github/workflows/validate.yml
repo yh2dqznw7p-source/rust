@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: MIT
+# Lightweight checks that run on every push and PR.
+# These do NOT need a Unity license, so they run on free GitHub runners
+# in seconds and catch most "I broke the project" mistakes before the
+# heavyweight Unity build job kicks in.
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  structure:
+    name: Project structure & C# sanity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify expected layout
+        run: |
+          set -euo pipefail
+          required=(
+            "unity/ProjectSettings/ProjectVersion.txt"
+            "unity/Packages/manifest.json"
+            "unity/Assets/Scripts/Core/RustLike.Core.asmdef"
+            "unity/Assets/Scripts/Net/RustLike.Net.asmdef"
+            "unity/Assets/Scripts/World/RustLike.World.asmdef"
+            "unity/Assets/Scripts/Gameplay/RustLike.Gameplay.asmdef"
+            "unity/Assets/Scripts/Presentation/RustLike.Presentation.asmdef"
+            "unity/Assets/Scripts/Server/RustLike.Server.asmdef"
+            "docs/ARCHITECTURE.md"
+            "docs/ROADMAP.md"
+            "docs/PROJECT_STRUCTURE.md"
+            "HOW_TO_RUN.md"
+          )
+          missing=0
+          for f in "${required[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error file=$f::missing required file"
+              missing=1
+            fi
+          done
+          [ "$missing" = "0" ]
+
+      - name: Validate JSON files
+        run: |
+          set -euo pipefail
+          for f in $(find unity -name '*.json' -o -name '*.asmdef'); do
+            python3 -c "import json,sys; json.load(open('$f'))" \
+              || { echo "::error file=$f::invalid JSON"; exit 1; }
+          done
+
+      - name: Verify Unity Editor version is pinned to 2022.3.x LTS
+        run: |
+          set -euo pipefail
+          v=$(grep -oP 'm_EditorVersion: \K\S+' unity/ProjectSettings/ProjectVersion.txt)
+          echo "Editor version: $v"
+          case "$v" in
+            2022.3.*) ;;
+            *) echo "::error::Editor must be 2022.3.x LTS, got $v"; exit 1 ;;
+          esac
+
+      - name: Forbidden tokens in C# (HDRP, FishNet placeholders, etc.)
+        run: |
+          set -euo pipefail
+          # We deliberately do NOT depend on HDRP. Catch accidental references.
+          if grep -RIn --include='*.cs' \
+                'UnityEngine\.Rendering\.HighDefinition\|HDRenderPipeline' \
+                unity/Assets/Scripts; then
+            echo "::error::HDRP reference found — project is URP only"
+            exit 1
+          fi
+
+      - name: Setup .NET (just for Roslyn syntax probe)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: C# syntax probe via Roslyn (no Unity refs needed)
+        # We don't compile the project (Unity refs aren't here) but we DO
+        # parse every .cs file to catch obvious syntax errors before Unity
+        # spends 8 minutes telling us the same thing.
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/syntax-probe && cd /tmp/syntax-probe
+          dotnet new console --force >/dev/null
+          cat > Probe.cs <<'EOF'
+          using System;
+          using System.IO;
+          using System.Linq;
+          using Microsoft.CodeAnalysis.CSharp;
+          class Probe {
+              static int Main(string[] a) {
+                  int errors = 0;
+                  foreach (var f in Directory.EnumerateFiles(a[0], "*.cs", SearchOption.AllDirectories)) {
+                      var src = File.ReadAllText(f);
+                      var tree = CSharpSyntaxTree.ParseText(src,
+                          new CSharpParseOptions(LanguageVersion.CSharp10));
+                      foreach (var d in tree.GetDiagnostics().Where(x =>
+                          x.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)) {
+                          Console.Error.WriteLine($"::error file={f},line={d.Location.GetLineSpan().StartLinePosition.Line+1}::{d.GetMessage()}");
+                          errors++;
+                      }
+                  }
+                  return errors == 0 ? 0 : 1;
+              }
+          }
+          EOF
+          rm -f Program.cs
+          dotnet add package Microsoft.CodeAnalysis.CSharp --version 4.8.0 >/dev/null
+          dotnet run -- "$GITHUB_WORKSPACE/unity/Assets/Scripts"

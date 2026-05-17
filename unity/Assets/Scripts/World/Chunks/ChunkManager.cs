@@ -77,8 +77,6 @@ namespace RustLike.World.Chunks
         /// <summary> Replace anchor set for a player in O(N+M). Use this from PlayerAOI. </summary>
         public void UpdateAnchorSet(HashSet<ChunkCoord> previousSet, HashSet<ChunkCoord> currentSet)
         {
-            // remove old anchors no longer wanted
-            using (HashSetPool<ChunkCoord>.Rent() is var _) { /* no-op pool warm */ }
             foreach (var prev in previousSet)
                 if (!currentSet.Contains(prev)) RemoveAnchor(prev);
             foreach (var cur in currentSet)

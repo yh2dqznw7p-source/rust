@@ -5,10 +5,7 @@
         "RustLike.Core",
         "RustLike.Net",
         "RustLike.World",
-        "RustLike.Gameplay",
-        "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.TextMeshPro",
-        "Unity.InputSystem"
+        "RustLike.Gameplay"
     ],
     "includePlatforms": [
         "Editor",
