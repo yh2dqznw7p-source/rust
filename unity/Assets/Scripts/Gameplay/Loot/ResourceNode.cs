@@ -71,7 +71,7 @@ namespace RustLike.Gameplay.Loot
 
             if (Health <= 0f)
             {
-                Log.Trace(LogCat.Loot, "ResourceNode depleted: " + Kind);
+                Log.Trace(LogCat.Gameplay, "ResourceNode depleted: " + Kind);
                 Destroy(gameObject);
             }
         }

@@ -34,7 +34,12 @@ namespace RustLike.Gameplay.Building
         private readonly Dictionary<int, StabilityGraph> _stabilityByBase = new(64);
 
         private int _nextBlockId = 1;
+        // Reserved for Phase 4 stability-graph base assignment. Kept here so
+        // future code lands in one place instead of scattering counters.
+        // ReSharper disable once NotAccessedField.Local
+#pragma warning disable CS0414
         private int _nextBaseId = 1;
+#pragma warning restore CS0414
 
         // ---- place / upgrade / damage ----
 
