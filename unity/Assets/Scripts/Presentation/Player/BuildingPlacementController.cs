@@ -11,6 +11,7 @@
 using RustLike.Core.Bootstrap;
 using RustLike.Gameplay.Inventory;
 using RustLike.Gameplay.Loot;
+using RustLike.Presentation.Bootstrap;
 using RustLike.Presentation.UI;
 using UnityEngine;
 
