@@ -5,9 +5,11 @@ Multiplayer survival sandbox inspired by Rust. Unity 2022.3 LTS + URP.
 **Optimization priority:** FPS → RAM → Network → Gameplay → Graphics.
 **Targets:** 60 FPS / 8 GB RAM on a GTX 1050‑class PC, dedicated server with 100 players on a 4 vCPU VPS.
 
-> Status: **Phase 0 — foundation skeleton.** Architecture, project structure
-> and core systems are in place. Most gameplay modules are interfaces + minimal
-> data structures, ready to be filled in following the roadmap.
+> Status: **Phase 0 — foundation skeleton + playable demo.** Architecture, project structure
+> and core systems are in place. **Open the Unity project, hit Play, walk around
+> with a working survival HUD.** See [HOW_TO_RUN.md](HOW_TO_RUN.md). Most gameplay
+> modules are interfaces + minimal data structures, ready to be filled in
+> following the roadmap.
 
 ## Repository layout
 
@@ -46,17 +48,20 @@ Each module has its own `README.md` next to the asmdef.
 
 ## Building
 
-You'll need:
-- **Unity 2022.3.40f1** (LTS).
-- A GitHub account to pull FishNet via the manifest.
+You'll need **Unity 2022.3.40f1** (LTS).
 
-To open: clone the repo, then point Unity Hub at the `unity/` directory.
+To play right now:
+1. Clone the repo, open Unity Hub.
+2. Add project from disk → point at the `unity/` directory.
+3. Press Play. See [HOW_TO_RUN.md](HOW_TO_RUN.md) for full controls and
+   troubleshooting.
 
 For a server build:
 - Player Settings → Server Build = ON.
 - Define `UNITY_SERVER`.
 - Strip Engine Code = High.
 - Use `-batchmode -nographics -server` at runtime.
+- (FishNet transport lands in Phase 0 close-out; see `docs/ROADMAP.md`.)
 
 ## Performance budgets (Low quality, 1080p)
 
