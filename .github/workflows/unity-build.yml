@@ -71,7 +71,7 @@ jobs:
 
       # Library/ caching shaves ~5–10 min off subsequent builds.
       - name: Cache Unity Library
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: unity/Library
           key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('unity/Packages/manifest.json') }}
